@@ -1,7 +1,7 @@
 /*
   xnrg_02_cse7766.ino - CSE7766 and HLW8032 energy sensor support for Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -68,7 +68,7 @@ void CseReceived(void) {
 
   uint8_t header = Cse.rx_buffer[0];
   if ((header & 0xFC) == 0xFC) {
-    AddLog_P2(LOG_LEVEL_DEBUG, PSTR("CSE: Abnormal hardware"));
+    AddLog(LOG_LEVEL_DEBUG, PSTR("CSE: Abnormal hardware"));
     return;
   }
 
@@ -165,7 +165,7 @@ void CseSerialInput(void) {
             Cse.byte_counter--;
           } while ((Cse.byte_counter > 2) && (0x5A != Cse.rx_buffer[1]));
           if (0x5A != Cse.rx_buffer[1]) {
-            AddLog_P2(LOG_LEVEL_DEBUG, PSTR("CSE: " D_CHECKSUM_FAILURE));
+            AddLog(LOG_LEVEL_DEBUG, PSTR("CSE: " D_CHECKSUM_FAILURE));
             Cse.received = false;
             Cse.byte_counter = 0;
           }
@@ -208,7 +208,7 @@ void CseEverySecond(void) {
           Energy.kWhtoday_delta += delta;
         }
         else {
-          AddLog_P2(LOG_LEVEL_DEBUG, PSTR("CSE: Overload"));
+          AddLog(LOG_LEVEL_DEBUG, PSTR("CSE: Overload"));
           Cse.cf_pulses_last_time = CSE_PULSES_NOT_INITIALIZED;
         }
         EnergyUpdateToday();
@@ -221,7 +221,7 @@ void CseSnsInit(void) {
   // Software serial init needs to be done here as earlier (serial) interrupts may lead to Exceptions
 //  CseSerial = new TasmotaSerial(Pin(GPIO_CSE7766_RX), Pin(GPIO_CSE7766_TX), 1);
   CseSerial = new TasmotaSerial(Pin(GPIO_CSE7766_RX), -1, 1);
-  if (CseSerial->begin(4800, 2)) {  // Fake Software Serial 8E1 by using two stop bits
+  if (CseSerial->begin(4800, SERIAL_8E1)) {
     if (CseSerial->hardwareSerial()) {
       SetSerial(4800, TS_SERIAL_8E1);
       ClaimSerial();
@@ -230,8 +230,9 @@ void CseSnsInit(void) {
       Settings.param[P_CSE7766_INVALID_POWER] = CSE_MAX_INVALID_POWER;  // SetOption39 1..255
     }
     Cse.power_invalid = Settings.param[P_CSE7766_INVALID_POWER];
+    Energy.use_overtemp = true;                 // Use global temperature for overtemp detection
   } else {
-    energy_flg = ENERGY_NONE;
+    TasmotaGlobal.energy_driver = ENERGY_NONE;
   }
 }
 
@@ -240,7 +241,7 @@ void CseDrvInit(void) {
   if (PinUsed(GPIO_CSE7766_RX)) {
     Cse.rx_buffer = (uint8_t*)(malloc(CSE_BUFFER_SIZE));
     if (Cse.rx_buffer != nullptr) {
-      energy_flg = XNRG_02;
+      TasmotaGlobal.energy_driver = XNRG_02;
     }
   }
 }
